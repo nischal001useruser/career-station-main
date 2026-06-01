@@ -1,0 +1,32 @@
+{
+  "name": "career-station-analytics",
+  "version": "1.0.0",
+  "description": "Zero-cost educational exam analytics platform",
+  "private": true,
+  "scripts": {
+    "backend:install": "cd backend && npm install",
+    "backend:dev": "cd backend && npm run dev",
+    "backend:start": "cd backend && npm start",
+    "backend:seed": "cd backend && npm run seed",
+    "frontend:install": "cd frontend && npm install",
+    "frontend:dev": "cd frontend && npm run dev",
+    "frontend:build": "cd frontend && npm run build",
+    "frontend:clean": "cd frontend && node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
+    "install": "npm run backend:install && npm run frontend:install",
+    "build": "npm run frontend:build",
+    "clean": "npm run frontend:clean",
+    "dev": "echo \"Run frontend and backend in separate terminals\" && echo \"Terminal 1: npm run frontend:dev\" && echo \"Terminal 2: npm run backend:dev\""
+  },
+  "repository": {
+    "type": "git"
+  },
+  "keywords": [
+    "exam",
+    "analytics",
+    "education",
+    "React",
+    "Express"
+  ],
+  "author": "Career Station",
+  "license": "ISC"
+}
