@@ -3,7 +3,7 @@
  * Handles admin login, logout, and auth validation
  */
 
-import { getQuery } from '../database/helpers.js'
+import { getQuery } from '../utils/queryHelpers.js'
 import { hashPassword, verifyPassword } from '../utils/passwordUtils.js'
 import { generateToken, revokeToken } from '../utils/tokenUtils.js'
 import { sendSuccess, handleError } from '../utils/responseHelpers.js'
