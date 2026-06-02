@@ -1,55 +1,56 @@
-import { createClient } from '@libsql/client'
+import sqlite3 from 'sqlite3'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { createTables } from './schema.js'
 import { migrateStudentAnswersSelectedOptionNullable } from './migrateStudentAnswersSelectedOptionNullable.js'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-// Detect if running live on Render
-const isProduction = process.env.RENDER === 'true'
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+import fs from 'fs'
+
+const dbPathFromEnv = process.env.DB_PATH || 'data/exams.db'
+
+const dbPath = path.isAbsolute(dbPathFromEnv)
+  ? dbPathFromEnv
+  : path.resolve(__dirname, '../../', dbPathFromEnv)
+
+// ensure folder exists on Render
+const dbDir = path.dirname(dbPath)
+
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true })
+}
 
 let db = null
 
-export const initDatabase = async () => {
-  try {
-    if (isProduction) {
-      console.log('Connecting to Turso Cloud SQLite Database...')
-      db = createClient({
-        url: process.env.TURSO_DATABASE_URL,
-        authToken: process.env.TURSO_AUTH_TOKEN,
-      })
-    } else {
-      console.log('Connecting to Local SQLite File Database...')
-      const localPath = path.resolve(__dirname, '../../data/exams.db')
-      db = createClient({ url: `file:${localPath}` })
-    }
+export const initDatabase = () => {
+  return new Promise((resolve, reject) => {
+    db = new sqlite3.Database(dbPath, (err) => {
+      if (err) {
+        reject(err)
+      } else {
+        console.log('Connected to SQLite database at:', dbPath)
+        createTables(db)
+        // Migration: selected_option must allow NULL for skipped/unanswered questions.
+        migrateStudentAnswersSelectedOptionNullable()
+          .catch((e) => console.error('Migration failed:', e))
+          .finally(() => resolve(db))
 
-    // Initialize tables using the new cloud client
-    await createTables(db)
-
-    // Run the migration safely
-    await migrateStudentAnswersSelectedOptionNullable()
-      .catch((e) => console.error('Migration failed:', e))
-
-    console.log('Database initialized successfully.')
-    return db
-  } catch (error) {
-    console.error('Failed to initialize database:', error)
-    throw error
-  }
+      }
+    })
+  })
 }
 
-// Returns the active Turso client instance
 export const getDatabase = () => db
 
-export const closeDatabase = async () => {
+export const closeDatabase = () => {
   if (db) {
-    try {
-      await db.close()
-      console.log('Database connection closed')
-    } catch (err) {
-      console.error('Error closing database:', err)
-    }
+    db.close((err) => {
+      if (err) {
+        console.error('Error closing database:', err)
+      } else {
+        console.log('Database connection closed')
+      }
+    })
   }
 }

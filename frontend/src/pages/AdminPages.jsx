@@ -1,29 +1,3 @@
-const apiCall = async (url, options = {}) => {
-  const headers = {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-
-  // JSON.stringify replacer for BigInt -> string
-  const bodyData = options.body
-    ? JSON.stringify(options.body, (key, value) => (typeof value === 'bigint' ? value.toString() : value))
-    : null;
-
-  const response = await fetch(url, {
-    ...options,
-    headers: { ...headers, ...options.headers },
-    body: bodyData,
-  });
-
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || 'Request failed');
-  return data;
-};
-
-// sanitizeData (legacy) kept only if referenced elsewhere
-const sanitizeData = (data) => safeStringify(data);
-
-
 import { API_BASE_URL } from '../config/api'
 
 import { useEffect, useState } from 'react'
@@ -33,56 +7,22 @@ import { Pie, Line } from 'react-chartjs-2'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement, BarElement } from 'chart.js'
 import { chartColors, chartOptions } from '../charts/chartConfig'
 import { useAuth } from '../context/AuthContext'
-import { safeStringify } from '../utils/safeStringify'
-
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement, BarElement)
 
-const MODE_TOTAL_QUESTIONS = {
-  '25marks': 25,
-  '100marks': 100,
-}
-
-const getModeTotalQuestions = ({ exam_mode, custom_total_questions }) => {
-  if (exam_mode === 'custom') {
-    const n = Number(custom_total_questions)
-    if (!Number.isInteger(n) || n <= 0) return 25
-    return n
-  }
-  return MODE_TOTAL_QUESTIONS[exam_mode] || 25
-}
-
-const createQuestionRows = (totalQuestions) => {
-  const n = Number(totalQuestions)
-  const total = Number.isInteger(n) && n > 0 ? n : 25
-
-
+const createQuestionRows = () => {
   const rows = []
-  for (let i = 1; i <= total; i++) {
-    // Keep legacy A/B/C mapping for 25marks. For other modes/custom, keep a simple rotating scheme.
+
+  for (let i = 1; i <= 25; i++) {
     let section = 'A'
     let difficulty = 'Easy'
 
-    if (total === 25) {
-      if (i >= 11 && i <= 20) {
-        section = 'B'
-        difficulty = 'Understanding'
-      } else if (i >= 21 && i <= 25) {
-        section = 'C'
-        difficulty = 'Hard'
-      }
-    } else {
-      const bucket = i % 3
-      if (bucket === 1) {
-        section = 'A'
-        difficulty = 'Easy'
-      } else if (bucket === 2) {
-        section = 'B'
-        difficulty = 'Understanding'
-      } else {
-        section = 'C'
-        difficulty = 'Hard'
-      }
+    if (i >= 11 && i <= 20) {
+      section = 'B'
+      difficulty = 'Understanding'
+    } else if (i >= 21 && i <= 25) {
+      section = 'C'
+      difficulty = 'Hard'
     }
 
     rows.push({
@@ -100,7 +40,6 @@ const createQuestionRows = (totalQuestions) => {
 
   return rows
 }
-
 
 function PlaceholderPage({ title, icon }) {
   return (
@@ -127,19 +66,7 @@ export function InputTestPage() {
   const [topicName, setTopicName] = useState('')
   const [nepaliDate, setNepaliDate] = useState('')
   const [shift, setShift] = useState('A')
-
-  // Exam mode / total questions (supports backend exam_mode + total_questions)
-  // mode: '25' | '100' | 'custom'
-  const [examMode, setExamMode] = useState('25')
-  const [customCount, setCustomCount] = useState(25)
-
-  const currentTotalQuestions = Number(
-    examMode === 'custom' ? customCount : (MODE_TOTAL_QUESTIONS[`${examMode}marks`] || 25)
-  )
-
-  const [questions, setQuestions] = useState(createQuestionRows(currentTotalQuestions))
-
-
+  const [questions, setQuestions] = useState(createQuestionRows())
   const [existingExams, setExistingExams] = useState([])
   const [editingExamId, setEditingExamId] = useState(null)
   const [isLoadingExams, setIsLoadingExams] = useState(false)
@@ -172,15 +99,10 @@ export function InputTestPage() {
     setTopicName('')
     setNepaliDate('')
     setShift('A')
-    setExamMode('25')
-    setCustomCount(25)
-    const nextTotal = Number(MODE_TOTAL_QUESTIONS['25marks'] || 25)
-    setQuestions(createQuestionRows(nextTotal))
+    setQuestions(createQuestionRows())
     setMessage('')
     setError('')
   }
-
-
 
   const fetchExistingExams = async () => {
     try {
@@ -201,7 +123,7 @@ export function InputTestPage() {
   const loadExamForEdit = async (examId) => {
     setError('')
     setMessage('')
-    try {
+      try {
       setIsLoadingExams(true)
       const [examResponse, questionsResponse] = await Promise.all([
         fetch(`${API_BASE_URL}/exams/${examId}`),
@@ -223,23 +145,7 @@ export function InputTestPage() {
       setTopicName(exam.topic_name)
       setNepaliDate(exam.nepali_date)
       setShift(exam.shift)
-
-      const loadedExamMode = examData.exam_mode || '25marks'
-      const normalizedExamMode = loadedExamMode === 'custom'
-        ? 'custom'
-        : loadedExamMode === '100marks'
-          ? '100'
-          : '25'
-      setExamMode(normalizedExamMode)
-
-      const nextTotal = Number(
-        examData.total_questions || examData.total_questions === 0
-          ? examData.total_questions
-          : (MODE_TOTAL_QUESTIONS[loadedExamMode] || 25)
-      )
-      setCustomCount(nextTotal)
-      setQuestions(questionsData.data || createQuestionRows(nextTotal))
-
+      setQuestions(questionsData.data || createQuestionRows())
       setEditingExamId(examId)
       setMessage('Loaded exam for editing. Save to apply updates.')
     } catch (err) {
@@ -248,7 +154,6 @@ export function InputTestPage() {
       setIsLoadingExams(false)
     }
   }
-
 
   const deleteExam = async (examId) => {
     const confirmed = window.confirm('Delete this exam and all associated questions? This action cannot be undone.')
@@ -295,11 +200,11 @@ export function InputTestPage() {
     }
 
     const incompleteQuestions = questions.filter((question) =>
-      !question.question_text?.trim() ||
-      !question.option_a?.trim() ||
-      !question.option_b?.trim() ||
-      !question.option_c?.trim() ||
-      !question.option_d?.trim() ||
+      !question.question_text.trim() ||
+      !question.option_a.trim() ||
+      !question.option_b.trim() ||
+      !question.option_c.trim() ||
+      !question.option_d.trim() ||
       !question.correct_option
     )
 
@@ -310,18 +215,9 @@ export function InputTestPage() {
 
     setIsSubmitting(true)
 
-    // Helper to sanitize BigInt values
-    // (kept for backward compatibility but we now use safeStringify)
-    const sanitizeData = (data) => safeStringify(data);
-
-
-
     try {
       const endpoint = editingExamId ? `${API_BASE_URL}/exams/${editingExamId}` : `${API_BASE_URL}/exams`
       const method = editingExamId ? 'PUT' : 'POST'
-
-      const payloadExamMode = examMode === 'custom' ? 'custom' : `${examMode}marks`
-
       const response = await fetch(endpoint, {
         method,
         headers: {
@@ -334,14 +230,10 @@ export function InputTestPage() {
           topic_name: topicName,
           nepali_date: nepaliDate,
           shift,
-          exam_mode: payloadExamMode,
-          total_questions: currentTotalQuestions,
-          custom_total_questions: examMode === 'custom' ? customCount : undefined,
-          // Apply sanitation here to fix the BigInt serialization crash
-          questions: sanitizeData(questions),
+          total_questions: 25,
+          questions,
         }),
       })
-
 
       const data = await response.json()
 
@@ -479,9 +371,8 @@ export function InputTestPage() {
         <p className="text-gray-600 mt-2">Create a single-topic exam and input the answer key. The exam structure is fixed at 25 questions.</p>
       </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 mb-6">
         <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-100">
-
           <p className="text-sm text-gray-500">Step 1</p>
           <p className="text-lg font-semibold text-gray-900 mt-1">Select exam details</p>
         </div>
@@ -630,47 +521,6 @@ export function InputTestPage() {
             </div>
           </div>
 
-          <div className="mb-4">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-gray-900">Select exam question count</p>
-                <p className="text-xs text-gray-500 mt-1">Auto-generates question editor rows for Answer Key entry.</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="w-48">
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Mode</label>
-                  <select
-                    value={examMode}
-                    onChange={(e) => {
-                      const v = e.target.value
-                      setExamMode(v)
-                      if (v !== 'custom') setCustomCount(Number(v))
-                    }}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="25">25</option>
-                    <option value="100">100</option>
-                    <option value="custom">custom</option>
-                  </select>
-                </div>
-
-                {examMode === 'custom' && (
-                  <div className="w-40">
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Custom count</label>
-                    <input
-                      type="number"
-                      min={1}
-                      step={1}
-                      value={customCount}
-                      onChange={(e) => setCustomCount(Number(e.target.value))}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
             <div className="p-4 bg-blue-50 rounded-lg">
               <p className="text-sm text-blue-700 font-medium">Section A</p>
@@ -688,7 +538,6 @@ export function InputTestPage() {
               <p className="text-xs text-gray-600 mt-1">Hard questions</p>
             </div>
           </div>
-
         </section>
 
         <section className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
@@ -697,9 +546,8 @@ export function InputTestPage() {
               <h2 className="text-xl font-semibold text-gray-900">Step 3: Correct Answer Key</h2>
               <p className="text-sm text-gray-500">Select the correct option for each question. The answer key will be saved with section and difficulty metadata.</p>
             </div>
-          <div className="flex items-center gap-3">
-              <div className="px-3 py-1 rounded-full bg-gray-100 text-gray-700 text-xs font-medium">{currentTotalQuestions} questions total</div>
-
+            <div className="flex items-center gap-3">
+              <div className="px-3 py-1 rounded-full bg-gray-100 text-gray-700 text-xs font-medium">25 questions total</div>
               <div className="flex rounded-xl bg-gray-100 p-1">
                 <button
                   type="button"
@@ -1043,32 +891,32 @@ export function InputResultPage() {
 
   const loadSelectedStudentResult = async (studentId, examId) => {
     try {
-      setIsLoading(true) // Ensure this is here
       setError('')
       setMessage('')
+      setIsLoading(true)
       setIsEditMode(false)
       setCurrentExisted(false)
       setResultSummary(null)
       setAnswers({})
 
-      if (!completedSet.has(Number(studentId))) return
+      // Pending student: keep answers empty
+      if (!completedSet.has(Number(studentId))) {
+        return
+      }
 
-      const response = await fetch(`${API_BASE_URL}/student-results/${examId}/${studentId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
+      const response = await fetch(`${API_BASE_URL}/results/student/${studentId}/exam/${examId}`)
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to load student result')
+      }
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Failed to load');
-
-      setCurrentExisted(true);
-      setAnswers((data.data?.question_reviews || []).reduce((acc, row) => {
-        acc[row.question_number] = row.selected_option;
-        return acc;
-      }, {}));
+      setCurrentExisted(true)
+      setAnswers(
+        (data.data?.question_reviews || []).reduce((acc, row) => {
+          acc[row.question_number] = row.selected_option
+          return acc
+        }, {})
+      )
 
       setResultSummary({
         totalScore: data.data?.summary?.marks,
@@ -1076,11 +924,13 @@ export function InputResultPage() {
         sectionB: data.data?.summary?.section_scores?.B,
         sectionC: data.data?.summary?.section_scores?.C,
         percentage: data.data?.summary?.percentage,
-      });
+      })
+
+      setMessage('Result already entered. You may review or edit it.')
     } catch (err) {
-      setError(err.message);
+      setError(err.message)
     } finally {
-      setIsLoading(false); // This ensures the loading spinner stops
+      setIsLoading(false)
     }
   }
 
@@ -1092,6 +942,7 @@ export function InputResultPage() {
     setMessage('')
     setError('')
   }
+
 
   const resetWorkflow = () => {
     setSelectedCourse('')
@@ -2249,7 +2100,6 @@ export function WeeklyReportsPage() {
           Authorization: token ? `Bearer ${token}` : '',
         },
       })
-
 
       const data = await response.json()
       if (!response.ok) {

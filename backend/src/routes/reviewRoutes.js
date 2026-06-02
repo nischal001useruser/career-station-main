@@ -1,14 +1,15 @@
 import express from 'express'
-
 import {
   submitReviewRequest,
-  deleteReviewRequest,
   getAllReviewRequests,
+  updateReviewRequestStatus,
 } from '../controllers/reviewController.js'
+import { authMiddleware } from '../middleware/authMiddleware.js'
 
-export const reviewRoutes = express.Router()
+const router = express.Router()
 
-reviewRoutes.post('/submit', submitReviewRequest)
-reviewRoutes.delete('/:id', deleteReviewRequest)
-reviewRoutes.get('/', getAllReviewRequests)
+router.post('/', submitReviewRequest)
+router.get('/', authMiddleware, getAllReviewRequests)
+router.patch('/:id/status', authMiddleware, updateReviewRequestStatus)
 
+export default router

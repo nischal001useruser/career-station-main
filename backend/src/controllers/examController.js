@@ -120,11 +120,8 @@ export const createExam = async (req, res) => {
       nepali_date,
       shift,
       total_questions = 25,
-      exam_mode = '25marks',
-      custom_total_questions,
       questions = [],
     } = req.body
-
 
     if (!course || !topic_name || !nepali_date || !shift) {
       return res.status(400).json({
@@ -133,35 +130,16 @@ export const createExam = async (req, res) => {
       })
     }
 
-    // Questions count must match the exam's total_questions (supports dynamic totals)
-    if (!Array.isArray(questions) || questions.length !== Number(total_questions)) {
+    if (!Array.isArray(questions) || questions.length !== 25) {
       return res.status(400).json({
         success: false,
-        message: `Exactly ${Number(total_questions)} questions are required`,
+        message: 'Exactly 25 questions are required',
       })
     }
 
-
     const generatedExamName = exam_name || `${course} - ${topic_name}`
 
-    // Support dynamic exam totals via exam_mode/custom_total_questions.
-    // Priority: explicit total_questions, else resolve from exam_mode/custom.
-    const resolvedTotalQuestions = (() => {
-      if (total_questions !== undefined && total_questions !== null) {
-        const n = Number(total_questions)
-        return Number.isInteger(n) && n > 0 ? n : 25
-      }
-      if (exam_mode === 'custom') {
-        const n = Number(custom_total_questions)
-        return Number.isInteger(n) && n > 0 ? n : 25
-      }
-      // Default: 25marks
-      return 25
-    })()
-
-
     const questionRows = []
-
     for (const question of questions) {
       const {
         question_number,
@@ -233,10 +211,9 @@ export const createExam = async (req, res) => {
     }
 
     const examResult = await runQuery(
-      'INSERT INTO exams (exam_name, course, topic_name, nepali_date, shift, exam_mode, total_questions) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [generatedExamName, course, topic_name, nepali_date, shift, exam_mode, resolvedTotalQuestions]
+      'INSERT INTO exams (exam_name, course, topic_name, nepali_date, shift, total_questions) VALUES (?, ?, ?, ?, ?, ?)',
+      [generatedExamName, course, topic_name, nepali_date, shift, total_questions]
     )
-
 
     const examId = examResult.lastID
 
@@ -262,14 +239,12 @@ export const createExam = async (req, res) => {
       res,
       {
         exam_id: examId,
-        total_questions: resolvedTotalQuestions,
-        exam_mode,
+        total_questions: total_questions,
         questions_saved: questionRows.length,
       },
       'Exam and answer key saved successfully',
       201
     )
-
   } catch (error) {
     handleError(res, error)
   }
@@ -285,41 +260,26 @@ export const updateExam = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Exam not found' })
     }
 
-    // Support dynamic exam totals via exam_mode/custom_total_questions.
-    // Priority: explicit total_questions, else resolve from exam_mode/custom.
-    const resolvedTotalQuestions = (() => {
-      if (total_questions !== undefined && total_questions !== null) return Number(total_questions)
-      if (req.body.exam_mode === 'custom') {
-        const n = Number(req.body.custom_total_questions)
-        return Number.isInteger(n) && n > 0 ? n : 25
-      }
-      return 25
-    })()
-
     await runQuery(
-      'UPDATE exams SET exam_name = ?, course = ?, topic_name = ?, nepali_date = ?, shift = ?, exam_mode = ?, total_questions = ? WHERE id = ?',
+      'UPDATE exams SET exam_name = ?, course = ?, topic_name = ?, nepali_date = ?, shift = ?, total_questions = ? WHERE id = ?',
       [
         exam_name || existingExam.exam_name,
         course || existingExam.course,
         topic_name || existingExam.topic_name,
         nepali_date || existingExam.nepali_date,
         shift || existingExam.shift,
-        req.body.exam_mode || existingExam.exam_mode || '25marks',
-        resolvedTotalQuestions || existingExam.total_questions,
+        total_questions || existingExam.total_questions,
         id,
       ]
     )
 
     if (questions) {
-      // Questions count must match the resolved exam total_questions (supports dynamic totals)
-      if (!Array.isArray(questions) || questions.length !== Number(resolvedTotalQuestions)) {
+      if (!Array.isArray(questions) || questions.length !== 25) {
         return res.status(400).json({
           success: false,
-          message: `Exactly ${Number(resolvedTotalQuestions)} questions are required when updating exam content`,
+          message: 'Exactly 25 questions are required when updating exam content',
         })
       }
-
-
 
       const questionRows = []
       for (const question of questions) {

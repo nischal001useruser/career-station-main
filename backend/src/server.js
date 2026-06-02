@@ -8,7 +8,7 @@ import authRoutes from './routes/authRoutes.js'
 import examRoutes from './routes/examRoutes.js'
 import studentRoutes from './routes/studentRoutes.js'
 import resultRoutes from './routes/resultRoutes.js'
-import { reviewRoutes } from './routes/reviewRoutes.js'
+import reviewRoutes from './routes/reviewRoutes.js'
 import inputResultStatusRoutes from './routes/inputResultStatusRoutes.js'
 
 dotenv.config()

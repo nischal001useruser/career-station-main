@@ -1,27 +1,32 @@
 /**
  * Database Schema Definitions
  * Creates all tables for Career Station Exam Analytics System
- * Migrated to support Turso Cloud SQLite (@libsql/client)
  */
 
-const ensureColumn = async (db, table, columnName, definition) => {
-  try {
-    const res = await db.execute(`PRAGMA table_info(${table})`)
-    const exists = res.rows.some((row) => row.name === columnName)
-    
-    if (!exists) {
-      await db.execute(`ALTER TABLE ${table} ADD COLUMN ${definition}`)
-      console.log(`✓ Added missing column ${columnName} to ${table}`)
+const ensureColumn = (db, table, columnName, definition) => {
+  db.all(`PRAGMA table_info(${table})`, (err, rows) => {
+    if (err) {
+      console.error(`Error checking ${table} table info:`, err)
+      return
     }
-  } catch (err) {
-    console.error(`Error handling migration column check for ${table}.${columnName}:`, err)
-  }
+
+    const exists = rows.some((row) => row.name === columnName)
+    if (!exists) {
+      db.run(`ALTER TABLE ${table} ADD COLUMN ${definition}`, (alterErr) => {
+        if (alterErr) {
+          console.error(`Error adding column ${columnName} to ${table}:`, alterErr)
+        } else {
+          console.log(`✓ Added missing column ${columnName} to ${table}`)
+        }
+      })
+    }
+  })
 }
 
-export const createTables = async (db) => {
-  try {
-    // 1. Students table
-    await db.execute(`
+export const createTables = (db) => {
+  db.serialize(() => {
+    // Students table
+    db.run(`
       CREATE TABLE IF NOT EXISTS students (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         full_name TEXT NOT NULL,
@@ -31,11 +36,13 @@ export const createTables = async (db) => {
         batch TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
-    `)
-    console.log('✓ students table initialized')
+    `, (err) => {
+      if (err) console.error('Error creating students table:', err)
+      else console.log('✓ students table initialized')
+    })
 
-    // 2. Exams table (Updated to support 25marks, 100marks, and custom mode)
-    await db.execute(`
+    // Exams table
+    db.run(`
       CREATE TABLE IF NOT EXISTS exams (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         exam_name TEXT NOT NULL,
@@ -43,15 +50,16 @@ export const createTables = async (db) => {
         topic_name TEXT NOT NULL,
         nepali_date TEXT NOT NULL,
         shift TEXT NOT NULL,
-        exam_mode TEXT NOT NULL DEFAULT '25marks',
         total_questions INTEGER DEFAULT 25,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
-    `)
-    console.log('✓ exams table initialized')
+    `, (err) => {
+      if (err) console.error('Error creating exams table:', err)
+      else console.log('✓ exams table initialized')
+    })
 
-    // 3. Questions table (CHECK constraint loosened to allow 'CUSTOM' or arbitrary dynamic mode classifications)
-    await db.execute(`
+    // Questions table
+    db.run(`
       CREATE TABLE IF NOT EXISTS questions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         exam_id INTEGER NOT NULL,
@@ -61,18 +69,26 @@ export const createTables = async (db) => {
         option_b TEXT,
         option_c TEXT,
         option_d TEXT,
-        section TEXT NOT NULL CHECK(section IN ('A', 'B', 'C', 'CUSTOM', 'NONE')),
+        section TEXT NOT NULL CHECK(section IN ('A', 'B', 'C')),
         difficulty TEXT NOT NULL,
         correct_option TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE,
         UNIQUE(exam_id, question_number)
       )
-    `)
-    console.log('✓ questions table initialized')
+    `, (err) => {
+      if (err) console.error('Error creating questions table:', err)
+      else console.log('✓ questions table initialized')
+    })
 
-    // 4. Student Answers table
-    await db.execute(`
+    ensureColumn(db, 'questions', 'question_text', 'question_text TEXT')
+    ensureColumn(db, 'questions', 'option_a', 'option_a TEXT')
+    ensureColumn(db, 'questions', 'option_b', 'option_b TEXT')
+    ensureColumn(db, 'questions', 'option_c', 'option_c TEXT')
+    ensureColumn(db, 'questions', 'option_d', 'option_d TEXT')
+
+    // Student Answers table
+    db.run(`
       CREATE TABLE IF NOT EXISTS student_answers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         student_id INTEGER NOT NULL,
@@ -86,11 +102,15 @@ export const createTables = async (db) => {
         FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE,
         UNIQUE(student_id, exam_id, question_number)
       )
-    `)
-    console.log('✓ student_answers table initialized')
+    `, (err) => {
+      if (err) console.error('Error creating student_answers table:', err)
+      else console.log('✓ student_answers table initialized')
+    })
 
-    // 5. Results table
-    await db.execute(`
+
+
+    // Results table
+    db.run(`
       CREATE TABLE IF NOT EXISTS results (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         student_id INTEGER NOT NULL,
@@ -109,11 +129,22 @@ export const createTables = async (db) => {
         FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE,
         UNIQUE(student_id, exam_id)
       )
-    `)
-    console.log('✓ results table initialized')
+    `, (err) => {
+      if (err) console.error('Error creating results table:', err)
+      else console.log('✓ results table initialized')
+    })
 
-    // 6. Weekly Reports table
-    await db.execute(`
+
+    // Add missing columns for existing DBs
+    ensureColumn(db, 'results', 'updated_at', 'updated_at TIMESTAMP')
+    ensureColumn(db, 'results', 'updated_by', 'updated_by TEXT')
+    ensureColumn(db, 'results', 'attendance_status', "attendance_status TEXT NOT NULL DEFAULT 'PRESENT'")
+    ensureColumn(db, 'student_answers', 'student_answer', 'student_answer TEXT')
+
+
+
+    // Weekly Reports table
+    db.run(`
       CREATE TABLE IF NOT EXISTS weekly_reports (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         student_id INTEGER NOT NULL,
@@ -124,22 +155,26 @@ export const createTables = async (db) => {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
       )
-    `)
-    console.log('✓ weekly_reports table initialized')
+    `, (err) => {
+      if (err) console.error('Error creating weekly_reports table:', err)
+      else console.log('✓ weekly_reports table initialized')
+    })
 
-    // 7. Admin Users table
-    await db.execute(`
+    // Admin Users table
+    db.run(`
       CREATE TABLE IF NOT EXISTS admin_users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
-    `)
-    console.log('✓ admin_users table initialized')
+    `, (err) => {
+      if (err) console.error('Error creating admin_users table:', err)
+      else console.log('✓ admin_users table initialized')
+    })
 
-    // 8. Review Requests table
-    await db.execute(`
+    // Review Requests table
+    db.run(`
       CREATE TABLE IF NOT EXISTS review_requests (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         student_id INTEGER NOT NULL,
@@ -151,36 +186,21 @@ export const createTables = async (db) => {
         FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
         FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE
       )
-    `)
-    console.log('✓ review_requests table initialized')
+    `, (err) => {
+      if (err) console.error('Error creating review_requests table:', err)
+      else console.log('✓ review_requests table initialized')
+    })
 
-    // Dynamic schema corrections / checks for backwards-compatibility safety
-    await ensureColumn(db, 'exams', 'exam_mode', "exam_mode TEXT NOT NULL DEFAULT '25marks'")
-    await ensureColumn(db, 'questions', 'question_text', 'question_text TEXT')
-    await ensureColumn(db, 'questions', 'option_a', 'option_a TEXT')
-    await ensureColumn(db, 'questions', 'option_b', 'option_b TEXT')
-    await ensureColumn(db, 'questions', 'option_c', 'option_c TEXT')
-    await ensureColumn(db, 'questions', 'option_d', 'option_d TEXT')
-    await ensureColumn(db, 'results', 'updated_at', 'updated_at TIMESTAMP')
-    await ensureColumn(db, 'results', 'updated_by', 'updated_by TEXT')
-    await ensureColumn(db, 'results', 'attendance_status', "attendance_status TEXT NOT NULL DEFAULT 'PRESENT'")
-    await ensureColumn(db, 'student_answers', 'student_answer', 'student_answer TEXT')
-
-    // Performance Index Initializations
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_students_course ON students(course)')
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_students_shift ON students(shift)')
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_exams_course ON exams(course)')
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_questions_exam_id ON questions(exam_id)')
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_questions_section ON questions(section)')
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_student_answers_exam_id ON student_answers(exam_id)')
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_student_answers_student_id ON student_answers(student_id)')
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_results_exam_id ON results(exam_id)')
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_results_student_id ON results(student_id)')
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_weekly_reports_student_id ON weekly_reports(student_id)')
-    
-    console.log('✓ All system indexes verified successfully.')
-  } catch (error) {
-    console.error('Critical Error during system schema creation execution:', error)
-    throw error
-  }
+    // Create indexes for performance
+    db.run('CREATE INDEX IF NOT EXISTS idx_students_course ON students(course)')
+    db.run('CREATE INDEX IF NOT EXISTS idx_students_shift ON students(shift)')
+    db.run('CREATE INDEX IF NOT EXISTS idx_exams_course ON exams(course)')
+    db.run('CREATE INDEX IF NOT EXISTS idx_questions_exam_id ON questions(exam_id)')
+    db.run('CREATE INDEX IF NOT EXISTS idx_questions_section ON questions(section)')
+    db.run('CREATE INDEX IF NOT EXISTS idx_student_answers_exam_id ON student_answers(exam_id)')
+    db.run('CREATE INDEX IF NOT EXISTS idx_student_answers_student_id ON student_answers(student_id)')
+    db.run('CREATE INDEX IF NOT EXISTS idx_results_exam_id ON results(exam_id)')
+    db.run('CREATE INDEX IF NOT EXISTS idx_results_student_id ON results(student_id)')
+    db.run('CREATE INDEX IF NOT EXISTS idx_weekly_reports_student_id ON weekly_reports(student_id)')
+  })
 }
