@@ -80,6 +80,7 @@ function CSLogo({ size = 120 }) {
   )
 }
 
+// ─── Grade helpers (unchanged logic) ──────────────────────────────────────────
 function getGrade(pct) {
   if (pct >= 90) return { label: 'Distinction', tier: 'A+', color: B.teal,  bg: B.tealPale,  border: B.tealBorder }
   if (pct >= 75) return { label: 'Merit',       tier: 'A',  color: B.teal,  bg: B.tealPale,  border: B.tealBorder }
@@ -90,10 +91,88 @@ function getGrade(pct) {
 
 function getMotivation(pct) {
   if (pct >= 90) return { msg: "Outstanding performance — you're among Career Station's top achievers.", icon: '🏆', level: 'Elite', action: 'Aim for 100% next round', accentColor: B.gold }
-  if (pct >= 75) return { msg: "Excellent work. Your commitment to excellence is reflected in every result.", icon: '⭐', level: 'Strong', action: 'Focus on complex concepts', accentColor: B.teal }
-  if (pct >= 60) return { msg: "Solid performance. Targeted practice will elevate your rank further.", icon: '📈', level: 'Good', action: 'Review incorrect answers today', accentColor: B.tealLight }
-  if (pct >= 40) return { msg: "You have the foundation. Consistency and revision will transform your scores.", icon: '💪', level: 'Growing', action: 'Build a daily study habit', accentColor: B.amber }
-  return { msg: "Every expert started here. Career Station's guidance system is built for your comeback.", icon: '🌱', level: 'Beginning', action: 'Master the fundamentals', accentColor: B.red }
+  if (pct >= 75) return { msg: "Excellent work. Your commitment to excellence is reflected in every result.", icon: '⭐', level: 'Strong', action: 'Focus on hard questions now', accentColor: B.teal }
+  if (pct >= 60) return { msg: "Solid performance. Focused practice on weak areas will elevate your rank.", icon: '📈', level: 'Good', action: 'Review incorrect answers today', accentColor: B.tealLight }
+  if (pct >= 40) return { msg: "You have the foundation. Consistency and targeted revision will transform your scores.", icon: '💪', level: 'Growing', action: 'Build a daily study habit', accentColor: B.amber }
+  return { msg: "Every expert started here. Career Station's guidance system is built for your comeback.", icon: '🌱', level: 'Beginning', action: 'Start with section A mastery', accentColor: B.red }
+}
+
+function getStrongestSection(scores) {
+  const map = { A: { label: 'Foundation (Easy)', pct: (scores.A / 10) * 100 }, B: { label: 'Understanding', pct: (scores.B / 10) * 100 }, C: { label: 'Advanced (Hard)', pct: (scores.C / 5) * 100 } }
+  return Object.entries(map).sort((a, b) => b[1].pct - a[1].pct)[0]
+}
+
+function getWeakestSection(scores) {
+  const map = { A: { label: 'Foundation (Easy)', pct: (scores.A / 10) * 100 }, B: { label: 'Understanding', pct: (scores.B / 10) * 100 }, C: { label: 'Advanced (Hard)', pct: (scores.C / 5) * 100 } }
+  return Object.entries(map).sort((a, b) => a[1].pct - b[1].pct)[0]
+}
+
+// ─── Animated counter ──────────────────────────────────────────────────────────
+function AnimatedNumber({ target, duration = 1200, suffix = '' }) {
+  const [display, setDisplay] = useState(0)
+  useEffect(() => {
+    let start = null
+    const step = (ts) => {
+      if (!start) start = ts
+      const progress = Math.min((ts - start) / duration, 1)
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setDisplay(Math.round(eased * target))
+      if (progress < 1) requestAnimationFrame(step)
+    }
+    requestAnimationFrame(step)
+  }, [target, duration])
+  return <>{display}{suffix}</>
+}
+
+// ─── Arc ring score ────────────────────────────────────────────────────────────
+function ArcRing({ pct, size = 160, stroke = 12, color = B.teal, bg = 'rgba(255,255,255,0.12)', children }) {
+  const [animPct, setAnimPct] = useState(0)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      let start = null
+      const step = (ts) => {
+        if (!start) start = ts
+        const progress = Math.min((ts - start) / 1400, 1)
+        const eased = 1 - Math.pow(1 - progress, 4)
+        setAnimPct(eased * pct)
+        if (progress < 1) requestAnimationFrame(step)
+      }
+      requestAnimationFrame(step)
+    }, 300)
+    return () => clearTimeout(t)
+  }, [pct])
+
+  const r = (size - stroke) / 2
+  const circ = 2 * Math.PI * r
+  const dash = (animPct / 100) * circ
+  const gap = circ - dash
+
+  return (
+    <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
+      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={bg} strokeWidth={stroke} />
+        <circle cx={size/2} cy={size/2} r={r} fill="none"
+          stroke={color} strokeWidth={stroke} strokeLinecap="round"
+          strokeDasharray={`${dash} ${gap}`}
+          style={{ transition: 'none', filter: `drop-shadow(0 0 8px ${color}60)` }}
+        />
+      </svg>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+// ─── Progress bar ──────────────────────────────────────────────────────────────
+function ProgressBar({ value, max, color = B.teal, bg = B.hairline, height = 6 }) {
+  const [w, setW] = useState(0)
+  useEffect(() => { const t = setTimeout(() => setW(Math.min((value / max) * 100, 100)), 200); return () => clearTimeout(t) }, [value, max])
+  return (
+    <div style={{ height, borderRadius: height, background: bg, overflow: 'hidden' }}>
+      <div style={{ height: '100%', width: `${w}%`, background: color, borderRadius: height, transition: 'width 1.2s cubic-bezier(0.16,1,0.3,1)', boxShadow: `0 0 8px ${color}60` }} />
+    </div>
+  )
 }
 
 // ─── Question card (logic preserved) ──────────────────────────────────────────
@@ -563,6 +642,9 @@ function ResultDashboard({ result, symbolNumber, examDate, onBack }) {
   const correctCount = isAbsent ? 0 : result.question_reviews.filter(q => q.status === 'Correct').length
   const wrongCount   = isAbsent ? 0 : result.question_reviews.filter(q => q.status !== 'Correct' && q.selected_option).length
   const skippedCount = isAbsent ? 0 : result.question_reviews.filter(q => !q.selected_option).length
+  const strongest = isAbsent ? null : getStrongestSection(result.summary.section_scores)
+  const weakest   = isAbsent ? null : getWeakestSection(result.summary.section_scores)
+
   const toggleReview = (num) => setReviewQuestions(c => c.includes(num) ? c.filter(n => n !== num) : [...c, num])
 
   const submitReview = async () => {
@@ -802,69 +884,162 @@ function ResultDashboard({ result, symbolNumber, examDate, onBack }) {
                 </button>
               ))}
             </div>
+
+            {/* ── OVERVIEW TAB ───────────────────────────────────────────── */}
             {activeTab === 'overview' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-                
-                {/* Exam Summary Card */}
-                <div className="cs-rise cs-rise-1 cs-card-hover" style={{ background: 'white', border: `1.5px solid ${B.tealBorder}`, borderRadius: 22, padding: 28, boxShadow: '0 2px 16px rgba(0,0,0,0.04)' }}>
-                  <div style={{ marginBottom: 24 }}>
-                    <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.18em', color: B.teal, marginBottom: 4, fontFamily: "'Barlow Condensed', sans-serif" }}>Performance Snapshot</p>
-                    <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 900, fontSize: 18, color: B.ink, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Exam Summary</h3>
-                  </div>
-                  
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px', background: B.surface, borderRadius: 16 }}>
-                    <div>
-                      <p style={{ fontSize: 12, color: B.muted }}>Total Score</p>
-                      <p style={{ fontSize: 24, fontWeight: 900 }}>{result.summary.marks} / 25</p>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <p style={{ fontSize: 12, color: B.muted }}>Overall Percentage</p>
-                      <p style={{ fontSize: 24, fontWeight: 900, color: B.teal }}>{Number(result.summary.percentage).toFixed(2)}%</p>
-                    </div>
-                  </div>
-                  
-                  <div style={{ marginTop: 20 }}>
-                    <ProgressBar value={result.summary.marks} max={25} color={B.teal} height={8} />
-                  </div>
-                </div>
 
-                {/* Motivation Card */}
-                <div className="cs-rise cs-rise-2 cs-card-hover" style={{
-                  background: `linear-gradient(135deg, ${B.tealDeep} 0%, ${B.tealDark} 100%)`,
-                  borderRadius: 22, padding: 24,
-                  boxShadow: `0 8px 32px ${B.tealGlow}`,
-                  position: 'relative', overflow: 'hidden',
-                }}>
-                  <div style={{ position: 'absolute', top: -30, right: -30, width: 160, height: 160, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', pointerEvents: 'none' }} />
-                  <div style={{ position: 'relative', zIndex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                      <span style={{ fontSize: 28 }}>{motive.icon}</span>
+                {/* Two-col: Section performance + Insights */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
+
+                  {/* Section Performance */}
+                  <div className="cs-rise cs-rise-1 cs-card-hover" style={{ background: 'white', border: `1.5px solid ${B.tealBorder}`, borderRadius: 22, padding: 28, boxShadow: '0 2px 16px rgba(0,0,0,0.04)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
                       <div>
-                        <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'rgba(255,255,255,0.5)', fontFamily: "'Barlow Condensed', sans-serif", marginBottom: 3 }}>Career Station Says</p>
-                        <p style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.9)', lineHeight: 1.5 }}>{motive.msg}</p>
+                        <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.18em', color: B.teal, marginBottom: 4, fontFamily: "'Barlow Condensed', sans-serif" }}>Section Analysis</p>
+                        <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 900, fontSize: 18, color: B.ink, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Subject Performance</h3>
                       </div>
                     </div>
-                    <div style={{ background: `${motive.accentColor}25`, border: `1px solid ${motive.accentColor}40`, borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span style={{ fontSize: 14 }}>🎯</span>
-                      <div>
-                        <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: "'Barlow Condensed', sans-serif", marginBottom: 2 }}>Next Focus</p>
-                        <p style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.85)' }}>{motive.action}</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                      <SectionBar label="Section A" sublabel="Easy · Q1–10" score={result.summary.section_scores.A} max={10} color={B.teal} />
+                      <SectionBar label="Section B" sublabel="Understanding · Q11–20" score={result.summary.section_scores.B} max={10} color={B.tealLight} />
+                      <SectionBar label="Section C" sublabel="Advanced · Q21–25" score={result.summary.section_scores.C} max={5} color={B.red} />
+                    </div>
+                    {/* Visual bar comparison */}
+                    <div style={{ marginTop: 24, padding: '16px 0 0', borderTop: `1px solid ${B.hairline}`, display: 'flex', gap: 8, alignItems: 'flex-end', height: 80 }}>
+                      {[
+                        { label: 'A', score: result.summary.section_scores.A, max: 10, color: B.teal },
+                        { label: 'B', score: result.summary.section_scores.B, max: 10, color: B.tealLight },
+                        { label: 'C', score: result.summary.section_scores.C, max: 5,  color: B.red },
+                      ].map(sec => {
+                        const h = Math.max(8, (sec.score / sec.max) * 56)
+                        return (
+                          <div key={sec.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                            <div style={{ width: '100%', height: h, background: sec.color, borderRadius: '6px 6px 0 0', opacity: 0.85, transition: 'height 0.8s cubic-bezier(0.16,1,0.3,1)' }} />
+                            <span style={{ fontSize: 9, fontWeight: 700, color: B.muted, fontFamily: "'Barlow Condensed', sans-serif", letterSpacing: '0.1em' }}>{sec.label}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Personalized Insights */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+                    {/* Motivation card */}
+                    <div className="cs-rise cs-rise-2 cs-card-hover" style={{
+                      background: `linear-gradient(135deg, ${B.tealDeep} 0%, ${B.tealDark} 100%)`,
+                      borderRadius: 22, padding: 24,
+                      boxShadow: `0 8px 32px ${B.tealGlow}`,
+                      position: 'relative', overflow: 'hidden',
+                    }}>
+                      <div style={{ position: 'absolute', top: -30, right: -30, width: 160, height: 160, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', pointerEvents: 'none' }} />
+                      <div style={{ position: 'relative', zIndex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                          <span style={{ fontSize: 28 }}>{motive.icon}</span>
+                          <div>
+                            <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'rgba(255,255,255,0.5)', fontFamily: "'Barlow Condensed', sans-serif", marginBottom: 3 }}>Career Station Says</p>
+                            <p style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.9)', lineHeight: 1.5 }}>{motive.msg}</p>
+                          </div>
+                        </div>
+                        <div style={{ background: `${motive.accentColor}25`, border: `1px solid ${motive.accentColor}40`, borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{ fontSize: 14 }}>🎯</span>
+                          <div>
+                            <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: "'Barlow Condensed', sans-serif", marginBottom: 2 }}>Next Focus</p>
+                            <p style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.85)' }}>{motive.action}</p>
+                          </div>
+                        </div>
                       </div>
                     </div>
+
+                    {/* Strongest subject */}
+                    {strongest && (
+                      <div className="cs-rise cs-rise-3 cs-card-hover" style={{ background: B.greenPale, border: `1.5px solid ${B.greenBorder}`, borderRadius: 18, padding: '18px 22px' }}>
+                        <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.16em', color: B.green, marginBottom: 6, fontFamily: "'Barlow Condensed', sans-serif" }}>
+                          ⭐ Your Strongest Area
+                        </p>
+                        <p style={{ fontSize: 16, fontWeight: 800, color: B.ink, fontFamily: "'Barlow Condensed', sans-serif", letterSpacing: '0.04em' }}>Section {strongest[0]} — {strongest[1].label}</p>
+                        <p style={{ fontSize: 13, color: B.green, fontWeight: 700, marginTop: 4 }}>{Math.round(strongest[1].pct)}% accuracy — keep building on this</p>
+                      </div>
+                    )}
+
+                    {/* Improvement area */}
+                    {weakest && (
+                      <div className="cs-rise cs-rise-4 cs-card-hover" style={{ background: B.amberPale, border: `1.5px solid ${B.amberBorder}`, borderRadius: 18, padding: '18px 22px' }}>
+                        <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.16em', color: B.amber, marginBottom: 6, fontFamily: "'Barlow Condensed', sans-serif" }}>
+                          📈 Focus Improvement Here
+                        </p>
+                        <p style={{ fontSize: 16, fontWeight: 800, color: B.ink, fontFamily: "'Barlow Condensed', sans-serif", letterSpacing: '0.04em' }}>Section {weakest[0]} — {weakest[1].label}</p>
+                        <p style={{ fontSize: 13, color: B.amber, fontWeight: 700, marginTop: 4 }}>{Math.round(weakest[1].pct)}% — targeted revision will lift your rank</p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {/* Answer Distribution */}
                 <div className="cs-rise cs-rise-2 cs-card-hover" style={{ background: 'white', border: `1.5px solid ${B.tealBorder}`, borderRadius: 22, padding: 28, boxShadow: '0 2px 16px rgba(0,0,0,0.04)' }}>
-                  {/* ... keep your existing Answer Distribution content here ... */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
+                    <div>
+                      <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.18em', color: B.teal, marginBottom: 4, fontFamily: "'Barlow Condensed', sans-serif" }}>Response Breakdown</p>
+                      <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 900, fontSize: 18, color: B.ink, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Answer Distribution</h3>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      {[{ label: 'Correct', color: B.green }, { label: 'Wrong', color: B.red }, { label: 'Skipped', color: B.muted }].map(l => (
+                        <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: l.color }} />
+                          <span style={{ fontSize: 11, color: B.muted, fontWeight: 600 }}>{l.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Segmented bar */}
+                  <div style={{ height: 20, borderRadius: 10, overflow: 'hidden', display: 'flex', marginBottom: 20, gap: 2 }}>
+                    {correctCount > 0 && <div style={{ flex: correctCount, background: B.green, borderRadius: '10px 0 0 10px', transition: 'flex 1s' }} />}
+                    {wrongCount > 0 && <div style={{ flex: wrongCount, background: B.red }} />}
+                    {skippedCount > 0 && <div style={{ flex: skippedCount, background: B.muted, opacity: 0.4, borderRadius: '0 10px 10px 0' }} />}
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14 }}>
+                    {[
+                      { label: 'Correct Answers', count: correctCount, total: 25, color: B.green, bg: B.greenPale, border: B.greenBorder },
+                      { label: 'Incorrect Answers', count: wrongCount, total: 25, color: B.red, bg: B.redPale, border: B.redBorder },
+                      { label: 'Skipped / Blank', count: skippedCount, total: 25, color: B.muted, bg: B.surface, border: B.hairline },
+                    ].map(item => (
+                      <div key={item.label} style={{ padding: '14px 18px', background: item.bg, border: `1.5px solid ${item.border}`, borderRadius: 16 }}>
+                        <p style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.14em', color: item.color, fontWeight: 700, marginBottom: 8, fontFamily: "'Barlow Condensed', sans-serif" }}>{item.label}</p>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 10 }}>
+                          <span style={{ fontSize: 32, fontWeight: 900, color: B.ink, fontFamily: "'Barlow Condensed', sans-serif", lineHeight: 1 }}>{item.count}</span>
+                          <span style={{ fontSize: 13, color: B.muted }}>/ 25</span>
+                        </div>
+                        <ProgressBar value={item.count} max={item.total} color={item.color} bg={`${item.color}18`} height={4} />
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Exam Details */}
                 <div className="cs-rise cs-rise-3 cs-card-hover" style={{ background: 'white', border: `1.5px solid ${B.tealBorder}`, borderRadius: 22, padding: 28, boxShadow: '0 2px 16px rgba(0,0,0,0.04)' }}>
-                  {/* ... keep your existing Exam Details content here ... */}
+                  <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.18em', color: B.teal, marginBottom: 6, fontFamily: "'Barlow Condensed', sans-serif" }}>Exam Details</p>
+                  <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 900, fontSize: 18, color: B.ink, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 20 }}>{result.exam.exam_name}</h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+                    {[
+                      { label: 'Course', value: result.exam.course },
+                      { label: 'Topic', value: result.exam.topic_name },
+                      { label: 'Exam Date', value: result.exam.nepali_date },
+                      { label: 'Total Questions', value: '25' },
+                      { label: 'Percentage', value: `${Number(result.summary.percentage).toFixed(2)}%` },
+                      { label: 'Class Rank', value: result.summary.rank ? `#${result.summary.rank}` : 'N/A' },
+                    ].map(item => (
+                      <div key={item.label} style={{ background: B.surface, borderRadius: 14, padding: '14px 16px', border: `1px solid ${B.hairline}` }}>
+                        <p style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: B.muted, marginBottom: 6, fontFamily: "'Barlow Condensed', sans-serif" }}>{item.label}</p>
+                        <p style={{ fontSize: 17, fontWeight: 800, color: B.ink, fontFamily: "'Barlow Condensed', sans-serif" }}>{item.value}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
-                {/* CTA Button */}
+                {/* CTA to questions */}
                 <button type="button" onClick={() => setActiveTab('questions')} className="cs-btn" style={{
                   background: `linear-gradient(135deg, ${B.teal} 0%, ${B.tealDark} 100%)`,
                   color: 'white', borderRadius: 18, padding: '18px 32px',
