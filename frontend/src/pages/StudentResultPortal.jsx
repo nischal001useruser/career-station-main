@@ -312,6 +312,97 @@ const STYLES = `
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { -webkit-font-smoothing: antialiased; background: ${B.off}; }
 
+  /* Mobile-first layout fixes */
+  .cs-portal-container {
+    width: 100%;
+    max-width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  @media (min-width: 640px) {
+    .cs-portal-container { max-width: 640px; }
+  }
+
+  @media (min-width: 768px) {
+    .cs-portal-container { max-width: 1140px; padding-left: 32px; padding-right: 32px; }
+  }
+
+  /* Sticky header: allow wrapping and reduce collisions on narrow screens */
+  .cs-sticky-header-inner {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .cs-sticky-header-right {
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+  }
+
+  @media (min-width: 640px) {
+    .cs-sticky-header-inner {
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+    }
+
+    .cs-sticky-header-right {
+      justify-content: flex-start;
+      width: auto;
+    }
+  }
+
+  .cs-student-name {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 420px) {
+    .cs-student-name {
+      white-space: normal;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      line-clamp: 2;
+    }
+  }
+
+  /* Tabs: avoid single-row squashing/overlap on mobile */
+  .cs-tabs-bar {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 28px;
+    background: white;
+    border-radius: 16px;
+    padding: 5px;
+    border: 1.5px solid ${B.tealBorder};
+    box-shadow: 0 2px 12px ${B.tealGlow};
+
+    flex-wrap: wrap;
+  }
+
+  .cs-tabs-btn {
+    flex: 1 1 calc(50% - 2px);
+    min-width: 140px;
+  }
+
+  @media (max-width: 420px) {
+    .cs-tabs-bar { flex-direction: column; }
+    .cs-tabs-btn { flex: 1 1 auto; width: 100%; min-width: 0; }
+  }
+
+  /* Ensure no clipping in the main content wrapper */
+  .cs-portal-main { width: 100%; overflow-x: hidden; }
+
+
   @keyframes cs-rise  { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:translateY(0); } }
   @keyframes cs-fade  { from { opacity:0; } to { opacity:1; } }
   @keyframes cs-pop   { from { opacity:0; transform:scale(0.94); } to { opacity:1; transform:scale(1); } }
@@ -685,11 +776,11 @@ function ResultDashboard({ result, symbolNumber, examDate, onBack }) {
       <header style={{
         background: 'white',
         borderBottom: `1px solid ${B.tealBorder}`,
-        padding: '0 32px',
+        padding: '0 16px',
         position: 'sticky', top: 0, zIndex: 200,
         boxShadow: `0 1px 20px ${B.tealGlow}`,
       }}>
-        <div style={{ maxWidth: 1140, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 66 }}>
+          <div className="cs-sticky-header-inner" style={{ maxWidth: 1140, margin: '0 auto', height: 66, display: 'flex' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
             <button type="button" onClick={onBack} className="cs-btn" style={{
               display: 'flex', alignItems: 'center', gap: 6,
@@ -703,9 +794,9 @@ function ResultDashboard({ result, symbolNumber, examDate, onBack }) {
             <CSWordmark size="sm" />
           </div>
           {!isAbsent && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ textAlign: 'right' }}>
-                <p style={{ fontSize: 13, fontWeight: 700, color: B.ink, lineHeight: 1.2 }}>{result.student.full_name}</p>
+            <div className="cs-sticky-header-right" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ textAlign: 'right', width: '100%' }}>
+                <p className="cs-student-name" style={{ fontSize: 13, fontWeight: 700, color: B.ink, lineHeight: 1.2 }}>{result.student.full_name}</p>
                 <p style={{ fontSize: 10, color: B.muted, letterSpacing: '0.06em' }}>{result.student.symbol_number}</p>
               </div>
               <div style={{
@@ -865,7 +956,7 @@ function ResultDashboard({ result, symbolNumber, examDate, onBack }) {
           <div style={{ maxWidth: 1140, margin: '0 auto', padding: '0 32px 72px' }}>
 
             {/* TABS */}
-            <div className="cs-rise cs-rise-1" style={{
+            <div className="cs-rise cs-rise-1 cs-tabs-bar" style={{
               display: 'flex', gap: 4, marginBottom: 28,
               background: 'white', borderRadius: 16, padding: 5,
               border: `1.5px solid ${B.tealBorder}`,
