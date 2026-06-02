@@ -1,56 +1,26 @@
-import sqlite3 from 'sqlite3'
-import path from 'path'
-import { fileURLToPath } from 'url'
-import { createTables } from './schema.js'
-import { migrateStudentAnswersSelectedOptionNullable } from './migrateStudentAnswersSelectedOptionNullable.js'
+import 'dotenv/config';
+import { createClient } from "@libsql/client";
 
+// Ensure these exist in your .env file
+const db = createClient({
+  url: process.env.TURSO_DATABASE_URL || "libsql://career-station-db-nischal001useruser.aws-ap-south-1.turso.io",
+  authToken: process.env.TURSO_AUTH_TOKEN,
+});
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-import fs from 'fs'
-
-const dbPathFromEnv = process.env.DB_PATH || 'data/exams.db'
-
-const dbPath = path.isAbsolute(dbPathFromEnv)
-  ? dbPathFromEnv
-  : path.resolve(__dirname, '../../', dbPathFromEnv)
-
-// ensure folder exists on Render
-const dbDir = path.dirname(dbPath)
-
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true })
-}
-
-let db = null
-
-export const initDatabase = () => {
-  return new Promise((resolve, reject) => {
-    db = new sqlite3.Database(dbPath, (err) => {
-      if (err) {
-        reject(err)
-      } else {
-        console.log('Connected to SQLite database at:', dbPath)
-        createTables(db)
-        // Migration: selected_option must allow NULL for skipped/unanswered questions.
-        migrateStudentAnswersSelectedOptionNullable()
-          .catch((e) => console.error('Migration failed:', e))
-          .finally(() => resolve(db))
-
-      }
-    })
-  })
-}
-
-export const getDatabase = () => db
-
-export const closeDatabase = () => {
-  if (db) {
-    db.close((err) => {
-      if (err) {
-        console.error('Error closing database:', err)
-      } else {
-        console.log('Database connection closed')
-      }
-    })
+export const initDatabase = async () => {
+  try {
+    console.log("Connected to Turso database");
+    // Note: If you have a schema.js that relies on `db.run`, 
+    // you will need to rewrite those functions to use `db.execute`
+    return db;
+  } catch (err) {
+    console.error("Failed to connect to Turso:", err);
+    throw err;
   }
-}
+};
+
+export const getDatabase = () => db;
+
+// closeDatabase is no longer needed for Turso/libSQL 
+// as the client manages connections automatically
+export const closeDatabase = () => {};

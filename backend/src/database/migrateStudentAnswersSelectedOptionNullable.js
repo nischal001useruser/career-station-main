@@ -1,4 +1,9 @@
+import 'dotenv/config';
 import { getDatabase } from '../database/connection.js'
+
+console.log("Checking environment variables:");
+console.log("URL:", process.env.TURSO_DATABASE_URL);
+console.log("TOKEN:", process.env.TURSO_AUTH_TOKEN ? "Found" : "Not Found");
 
 /**
  * Ensures student_answers.selected_option allows NULL.

@@ -28,5 +28,8 @@
     "Express"
   ],
   "author": "Career Station",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "@libsql/client": "^0.17.3"
+  }
 }

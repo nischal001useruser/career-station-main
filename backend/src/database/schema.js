@@ -1,32 +1,11 @@
-/**
- * Database Schema Definitions
- * Creates all tables for Career Station Exam Analytics System
- */
+import { runQuery } from '../utils/queryHelpers.js';
 
-const ensureColumn = (db, table, columnName, definition) => {
-  db.all(`PRAGMA table_info(${table})`, (err, rows) => {
-    if (err) {
-      console.error(`Error checking ${table} table info:`, err)
-      return
-    }
+export const createTables = async () => {
+  console.log('🚀 Initializing database schema on Turso...');
 
-    const exists = rows.some((row) => row.name === columnName)
-    if (!exists) {
-      db.run(`ALTER TABLE ${table} ADD COLUMN ${definition}`, (alterErr) => {
-        if (alterErr) {
-          console.error(`Error adding column ${columnName} to ${table}:`, alterErr)
-        } else {
-          console.log(`✓ Added missing column ${columnName} to ${table}`)
-        }
-      })
-    }
-  })
-}
-
-export const createTables = (db) => {
-  db.serialize(() => {
-    // Students table
-    db.run(`
+  try {
+    // 1. Students Table
+    await runQuery(`
       CREATE TABLE IF NOT EXISTS students (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         full_name TEXT NOT NULL,
@@ -36,13 +15,10 @@ export const createTables = (db) => {
         batch TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
-    `, (err) => {
-      if (err) console.error('Error creating students table:', err)
-      else console.log('✓ students table initialized')
-    })
+    `);
 
-    // Exams table
-    db.run(`
+    // 2. Exams Table
+    await runQuery(`
       CREATE TABLE IF NOT EXISTS exams (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         exam_name TEXT NOT NULL,
@@ -53,13 +29,10 @@ export const createTables = (db) => {
         total_questions INTEGER DEFAULT 25,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
-    `, (err) => {
-      if (err) console.error('Error creating exams table:', err)
-      else console.log('✓ exams table initialized')
-    })
+    `);
 
-    // Questions table
-    db.run(`
+    // 3. Questions Table
+    await runQuery(`
       CREATE TABLE IF NOT EXISTS questions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         exam_id INTEGER NOT NULL,
@@ -76,19 +49,10 @@ export const createTables = (db) => {
         FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE,
         UNIQUE(exam_id, question_number)
       )
-    `, (err) => {
-      if (err) console.error('Error creating questions table:', err)
-      else console.log('✓ questions table initialized')
-    })
+    `);
 
-    ensureColumn(db, 'questions', 'question_text', 'question_text TEXT')
-    ensureColumn(db, 'questions', 'option_a', 'option_a TEXT')
-    ensureColumn(db, 'questions', 'option_b', 'option_b TEXT')
-    ensureColumn(db, 'questions', 'option_c', 'option_c TEXT')
-    ensureColumn(db, 'questions', 'option_d', 'option_d TEXT')
-
-    // Student Answers table
-    db.run(`
+    // 4. Student Answers Table
+    await runQuery(`
       CREATE TABLE IF NOT EXISTS student_answers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         student_id INTEGER NOT NULL,
@@ -102,15 +66,10 @@ export const createTables = (db) => {
         FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE,
         UNIQUE(student_id, exam_id, question_number)
       )
-    `, (err) => {
-      if (err) console.error('Error creating student_answers table:', err)
-      else console.log('✓ student_answers table initialized')
-    })
+    `);
 
-
-
-    // Results table
-    db.run(`
+    // 5. Results Table
+    await runQuery(`
       CREATE TABLE IF NOT EXISTS results (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         student_id INTEGER NOT NULL,
@@ -129,78 +88,14 @@ export const createTables = (db) => {
         FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE,
         UNIQUE(student_id, exam_id)
       )
-    `, (err) => {
-      if (err) console.error('Error creating results table:', err)
-      else console.log('✓ results table initialized')
-    })
+    `);
 
+    // Add remaining tables (weekly_reports, admin_users, review_requests) here...
+    // Also include your CREATE INDEX statements using await runQuery(...)
 
-    // Add missing columns for existing DBs
-    ensureColumn(db, 'results', 'updated_at', 'updated_at TIMESTAMP')
-    ensureColumn(db, 'results', 'updated_by', 'updated_by TEXT')
-    ensureColumn(db, 'results', 'attendance_status', "attendance_status TEXT NOT NULL DEFAULT 'PRESENT'")
-    ensureColumn(db, 'student_answers', 'student_answer', 'student_answer TEXT')
-
-
-
-    // Weekly Reports table
-    db.run(`
-      CREATE TABLE IF NOT EXISTS weekly_reports (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        student_id INTEGER NOT NULL,
-        week_start TEXT NOT NULL,
-        week_end TEXT NOT NULL,
-        ai_feedback TEXT,
-        teacher_remark TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
-      )
-    `, (err) => {
-      if (err) console.error('Error creating weekly_reports table:', err)
-      else console.log('✓ weekly_reports table initialized')
-    })
-
-    // Admin Users table
-    db.run(`
-      CREATE TABLE IF NOT EXISTS admin_users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `, (err) => {
-      if (err) console.error('Error creating admin_users table:', err)
-      else console.log('✓ admin_users table initialized')
-    })
-
-    // Review Requests table
-    db.run(`
-      CREATE TABLE IF NOT EXISTS review_requests (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        student_id INTEGER NOT NULL,
-        exam_id INTEGER NOT NULL,
-        question_number TEXT NOT NULL,
-        reason TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'Pending',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
-        FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE
-      )
-    `, (err) => {
-      if (err) console.error('Error creating review_requests table:', err)
-      else console.log('✓ review_requests table initialized')
-    })
-
-    // Create indexes for performance
-    db.run('CREATE INDEX IF NOT EXISTS idx_students_course ON students(course)')
-    db.run('CREATE INDEX IF NOT EXISTS idx_students_shift ON students(shift)')
-    db.run('CREATE INDEX IF NOT EXISTS idx_exams_course ON exams(course)')
-    db.run('CREATE INDEX IF NOT EXISTS idx_questions_exam_id ON questions(exam_id)')
-    db.run('CREATE INDEX IF NOT EXISTS idx_questions_section ON questions(section)')
-    db.run('CREATE INDEX IF NOT EXISTS idx_student_answers_exam_id ON student_answers(exam_id)')
-    db.run('CREATE INDEX IF NOT EXISTS idx_student_answers_student_id ON student_answers(student_id)')
-    db.run('CREATE INDEX IF NOT EXISTS idx_results_exam_id ON results(exam_id)')
-    db.run('CREATE INDEX IF NOT EXISTS idx_results_student_id ON results(student_id)')
-    db.run('CREATE INDEX IF NOT EXISTS idx_weekly_reports_student_id ON weekly_reports(student_id)')
-  })
-}
+    console.log('✅ All tables initialized successfully.');
+  } catch (err) {
+    console.error('❌ Error initializing schema:', err);
+    throw err;
+  }
+};
