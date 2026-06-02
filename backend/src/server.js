@@ -1,3 +1,9 @@
+// Fix JSON serialization error for BigInt numbers from Turso/Drizzle
+BigInt.prototype.toJSON = function () {
+  const num = Number(this);
+  return Number.isSafeInteger(num) ? num : this.toString();
+};
+
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
