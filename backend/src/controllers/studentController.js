@@ -3,7 +3,8 @@ import { sendSuccess, handleError } from '../utils/responseHelpers.js'
 
 export const getAllStudents = async (req, res) => {
   try {
-    const students = await allQuery('SELECT * FROM students ORDER BY created_at DESC')
+    // UPDATED: Changed 'ORDER BY created_at DESC' to 'ORDER BY full_name ASC'
+    const students = await allQuery('SELECT * FROM students ORDER BY full_name ASC')
     sendSuccess(res, students, 'Students retrieved successfully')
   } catch (error) {
     handleError(res, error)
