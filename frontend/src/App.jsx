@@ -11,7 +11,9 @@ import {
   PastResultsPage,
   WeeklyReportsPage,
   StudentsPage,
+  ViewExamResultsPage,
 } from './pages/AdminPages'
+
 
 function App() {
   return (
@@ -82,6 +84,17 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/admin/view-exam-results"
+            element={
+              <ProtectedRoute>
+                <AdminLayout>
+                  <ViewExamResultsPage />
+                </AdminLayout>
+              </ProtectedRoute>
+            }
+          />
+
 
           <Route path="/student-results" element={<StudentResultPortal />} />
 

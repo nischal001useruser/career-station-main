@@ -17,9 +17,11 @@ export default function AdminSidebar() {
     { icon: '✦', label: 'Input Test', path: '/admin/input-test' },
     { icon: '↗', label: 'Input Result', path: '/admin/input-result' },
     { icon: '↗', label: 'View Past Results', path: '/admin/past-results' },
+    { icon: '🏅', label: 'View Exam Results', path: '/admin/view-exam-results' },
     { icon: '◌', label: 'Weekly Reports', path: '/admin/weekly-reports' },
     { icon: '◍', label: 'Students', path: '/admin/students' },
   ]
+
 
   const handleLogout = async () => {
     await logout()

@@ -94,12 +94,114 @@ export const getLeaderboardByExam = async (req, res) => {
       ORDER BY r.rank ASC, r.score DESC, r.percentage DESC, s.full_name ASC
     `, [examId])
 
-
     sendSuccess(res, leaderboard, 'Leaderboard retrieved successfully')
   } catch (error) {
     handleError(res, error)
   }
 }
+
+// Admin: fetch student performance buckets for a given exam.
+// Buckets are computed on the frontend using: score + attendance_status.
+// Endpoint returns results for ALL students that have a results row for the exam.
+// Unmarked = results row exists but score is NULL.
+// Absent = attendance_status === 'ABSENT'.
+export const getExamResultsForAdmin = async (req, res) => {
+  try {
+    // Prefer examId; otherwise resolve from course + nepali_date
+    const { examId } = req.params
+
+    if (examId) {
+      const rows = await allQuery(
+        `
+        SELECT
+          s.id as student_id,
+          s.full_name,
+          s.symbol_number,
+          s.course,
+          s.batch,
+          s.shift,
+          r.id as result_id,
+          r.exam_id,
+          r.attendance_status,
+          r.score,
+          r.percentage,
+          r.rank,
+          e.exam_name,
+          e.nepali_date,
+          e.course as exam_course,
+          e.shift as exam_shift
+        FROM results r
+        JOIN students s ON s.id = r.student_id
+        JOIN exams e ON e.id = r.exam_id
+        WHERE r.exam_id = ?
+        ORDER BY s.full_name ASC, s.symbol_number ASC
+        `,
+        [examId]
+      )
+
+      const examInfo = rows[0]
+        ? {
+            exam_id: Number(rows[0].exam_id),
+            exam_name: rows[0].exam_name,
+            course: rows[0].exam_course,
+            nepali_date: rows[0].nepali_date,
+            shift: rows[0].exam_shift,
+          }
+        : null
+
+      sendSuccess(res, { exam: examInfo, results: rows }, 'Exam results retrieved successfully')
+      return
+    }
+
+    const { course, nepali_date: nepaliDate } = req.query
+    if (!course || !nepaliDate) {
+      return res.status(400).json({ success: false, message: 'course and nepali_date are required' })
+    }
+
+    const rows = await allQuery(
+      `
+      SELECT
+        s.id as student_id,
+        s.full_name,
+        s.symbol_number,
+        s.course,
+        s.batch,
+        s.shift,
+        r.id as result_id,
+        r.exam_id,
+        r.attendance_status,
+        r.score,
+        r.percentage,
+        r.rank,
+        e.exam_name,
+        e.nepali_date,
+        e.course as exam_course,
+        e.shift as exam_shift
+      FROM results r
+      JOIN students s ON s.id = r.student_id
+      JOIN exams e ON e.id = r.exam_id
+      WHERE e.course = ? AND e.nepali_date = ?
+      ORDER BY e.id ASC, s.full_name ASC, s.symbol_number ASC
+      `,
+      [course, nepaliDate]
+    )
+
+    const examInfo = rows[0]
+      ? {
+          exam_id: Number(rows[0].exam_id),
+          exam_name: rows[0].exam_name,
+          course: rows[0].exam_course,
+          nepali_date: rows[0].nepali_date,
+          shift: rows[0].exam_shift,
+        }
+      : null
+
+    sendSuccess(res, { exam: examInfo, results: rows }, 'Exam results retrieved successfully')
+  } catch (error) {
+    handleError(res, error)
+  }
+}
+
 
 export const getStudentResultBySymbolAndDate = async (req, res) => {
   try {

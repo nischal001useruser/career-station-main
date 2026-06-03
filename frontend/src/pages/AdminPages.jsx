@@ -753,6 +753,7 @@ export function InputTestPage() {
 export function InputResultPage() {
   const { token } = useAuth()
   const [exams, setExams] = useState([])
+
   const [students, setStudents] = useState([])
   const [selectedCourse, setSelectedCourse] = useState('')
   const [selectedExamId, setSelectedExamId] = useState('')
@@ -2425,6 +2426,7 @@ export function WeeklyReportsPage() {
 
 export function StudentsPage() {
   const { token } = useAuth()
+
   const [students, setStudents] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
   const [isSaving, setIsSaving] = useState(false)
