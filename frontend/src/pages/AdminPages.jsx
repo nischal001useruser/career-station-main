@@ -2424,6 +2424,331 @@ export function WeeklyReportsPage() {
   )
 }
 
+export function ViewExamResultsPage() {
+  const { token } = useAuth()
+  const [exams, setExams] = useState([])
+  const [courses, setCourses] = useState([])
+
+  const [selectedCourse, setSelectedCourse] = useState('')
+  const [selectedExamId, setSelectedExamId] = useState('')
+
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+
+  const [examInfo, setExamInfo] = useState(null)
+  const [ranked, setRanked] = useState([])
+  const [unmarked, setUnmarked] = useState([])
+  const [absent, setAbsent] = useState([])
+
+  const [showArchived, setShowArchived] = useState(true)
+
+  useEffect(() => {
+    const loadExams = async () => {
+      try {
+        setLoading(true)
+        setError('')
+        const res = await fetch(`${API_BASE_URL}/exams`)
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.message || 'Failed to load exams')
+        const list = data.data || []
+        setExams(list)
+        setCourses([...new Set(list.map((e) => e.course))])
+      } catch (e) {
+        setError(e.message)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadExams()
+  }, [])
+
+  const examsForSelectedCourse = exams.filter((e) => e.course === selectedCourse)
+
+  const selectedExam = exams.find((e) => String(e.id) === String(selectedExamId))
+
+  const fetchExamResults = async () => {
+    if (!selectedExamId) {
+      setError('Select an exam date first.')
+      return
+    }
+
+    setError('')
+    setMessage('')
+    setLoading(true)
+
+    try {
+      const url = `${API_BASE_URL}/results/admin/exam-results/${selectedExamId}`
+      const res = await fetch(url, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message || 'Failed to load exam results')
+
+      const results = data?.data?.results || []
+      const info = data?.data?.exam || null
+      setExamInfo(info)
+
+      // Buckets
+      const rankedRows = []
+      const unmarkedRows = []
+      const absentRows = []
+
+      for (const row of results) {
+        const attendance = row.attendance_status
+        const score = row.score
+
+        if (attendance === 'ABSENT') {
+          absentRows.push(row)
+          continue
+        }
+
+        const hasNumericScore = score !== null && score !== undefined && !Number.isNaN(Number(score))
+        if (hasNumericScore) {
+          rankedRows.push({
+            ...row,
+            scoreNumber: Number(score),
+          })
+        } else {
+          unmarkedRows.push(row)
+        }
+      }
+
+      // Ranked sorted desc by marks
+      rankedRows.sort((a, b) => {
+        if (b.scoreNumber !== a.scoreNumber) return b.scoreNumber - a.scoreNumber
+        // tie-breakers for deterministic ordering
+        const ap = Number(a.percentage ?? 0)
+        const bp = Number(b.percentage ?? 0)
+        if (bp !== ap) return bp - ap
+        return String(a.full_name || '').localeCompare(String(b.full_name || ''))
+      })
+
+      // Assign Rank 1..n based on sorted order (ties not merged)
+      const withRanks = rankedRows.map((r, idx) => ({ ...r, displayRank: idx + 1 }))
+
+      setRanked(withRanks)
+      setUnmarked(unmarkedRows)
+      setAbsent(absentRows)
+      setMessage('Results loaded successfully.')
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="p-6 lg:p-8">
+      <div className="mb-6">
+        <p className="text-sm font-semibold text-blue-700 uppercase tracking-wide">Admin Dashboard</p>
+        <h1 className="text-3xl font-bold text-gray-900 mt-2">View Exam Results</h1>
+        <p className="text-gray-600 mt-2">Select a course + exam date to view Ranked, Unmarked, and Absent students.</p>
+      </div>
+
+      <section className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">Select Exam</h2>
+            <p className="text-sm text-gray-500">Choose the exam session you want to review.</p>
+          </div>
+          <span className="text-xs bg-gray-100 text-gray-700 px-3 py-1 rounded-full">{loading ? 'Loading…' : 'Ready'}</span>
+        </div>
+
+        {error && <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-red-700 text-sm">{error}</div>}
+        {message && <div className="mb-4 rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-green-700 text-sm">{message}</div>}
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            fetchExamResults()
+          }}
+          className="space-y-5"
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Course</label>
+              <select
+                value={selectedCourse}
+                onChange={(e) => {
+                  setSelectedCourse(e.target.value)
+                  setSelectedExamId('')
+                  setExamInfo(null)
+                  setRanked([])
+                  setUnmarked([])
+                  setAbsent([])
+                  setMessage('')
+                  setError('')
+                }}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select course</option>
+                {courses.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Exam Date</label>
+              <select
+                value={selectedExamId}
+                onChange={(e) => setSelectedExamId(e.target.value)}
+                disabled={!selectedCourse}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+              >
+                <option value="">Select exam date</option>
+                {examsForSelectedCourse.map((ex) => (
+                  <option key={ex.id} value={ex.id}>{ex.nepali_date} — {ex.topic_name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+            <button
+              type="submit"
+              disabled={loading || !selectedExamId}
+              className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-5 py-2.5 rounded-lg font-medium transition"
+            >
+              {loading ? 'Fetching results…' : 'View Results'}
+            </button>
+
+            {selectedExam && (
+              <div className="text-sm text-gray-700 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
+                <span className="font-semibold">Loaded:</span> {selectedExam.exam_name} • {selectedExam.nepali_date}
+              </div>
+            )}
+          </div>
+        </form>
+      </section>
+
+      {examInfo && (
+        <section className="mb-6">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">Exam: {examInfo.exam_name}</h2>
+            <p className="text-sm text-gray-500">{examInfo.course} • {examInfo.nepali_date}</p>
+          </div>
+        </section>
+      )}
+
+      <section className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">Ranked</h2>
+            <p className="text-sm text-gray-500">Students with numeric scores (sorted by marks descending).</p>
+          </div>
+          <span className="text-xs bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full border border-emerald-200">
+            {ranked.length} ranked
+          </span>
+        </div>
+
+        {ranked.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-gray-200 p-4 text-sm text-gray-500">No ranked results found for this exam.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left">
+              <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                <tr>
+                  <th className="px-4 py-3">Rank</th>
+                  <th className="px-4 py-3">Student</th>
+                  <th className="px-4 py-3">Symbol No.</th>
+                  <th className="px-4 py-3">Marks</th>
+                  <th className="px-4 py-3">Percentage</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {ranked.map((row) => (
+                  <tr key={row.result_id || row.student_id} className="bg-white hover:bg-gray-50">
+                    <td className="px-4 py-3 text-sm font-semibold text-gray-900">{row.displayRank}</td>
+                    <td className="px-4 py-3 text-sm font-semibold text-gray-900">{row.full_name}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{row.symbol_number}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{row.score}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{Number(row.percentage || 0).toFixed(2)}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">Archived (Unmarked + Absent)</h2>
+            <p className="text-sm text-gray-500">Unmarked: present but no score. Absent: explicitly marked absent.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowArchived((s) => !s)}
+            className="px-3 py-2 rounded-lg bg-slate-100 text-slate-700 text-sm font-semibold border border-slate-200 hover:bg-slate-200"
+          >
+            {showArchived ? 'Hide' : 'Show'}
+          </button>
+        </div>
+
+        {showArchived ? (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="rounded-xl bg-amber-50 border border-amber-200 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-semibold text-amber-900">Unmarked</h3>
+                  <span className="text-xs bg-white px-3 py-1 rounded-full border border-amber-200 text-amber-800">{unmarked.length}</span>
+                </div>
+                {unmarked.length === 0 ? (
+                  <div className="text-sm text-amber-900/70">No unmarked students.</div>
+                ) : (
+                  <div className="space-y-2">
+                    {unmarked.map((row) => (
+                      <div key={row.result_id || row.student_id} className="flex items-center justify-between gap-3 bg-white border border-amber-200 rounded-lg px-3 py-2">
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-amber-900 truncate">{row.full_name}</div>
+                          <div className="text-xs text-amber-800">{row.symbol_number}</div>
+                        </div>
+                        <span className="text-xs font-semibold text-amber-800 rounded-full bg-amber-100 px-3 py-1">— / {selectedExam?.total_questions ?? 25}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-xl bg-rose-50 border border-rose-200 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-semibold text-rose-900">Absent</h3>
+                  <span className="text-xs bg-white px-3 py-1 rounded-full border border-rose-200 text-rose-800">{absent.length}</span>
+                </div>
+                {absent.length === 0 ? (
+                  <div className="text-sm text-rose-900/70">No absent students.</div>
+                ) : (
+                  <div className="space-y-2">
+                    {absent.map((row) => (
+                      <div key={row.result_id || row.student_id} className="flex items-center justify-between gap-3 bg-white border border-rose-200 rounded-lg px-3 py-2">
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-rose-900 truncate">{row.full_name}</div>
+                          <div className="text-xs text-rose-800">{row.symbol_number}</div>
+                        </div>
+                        <span className="text-xs font-semibold text-rose-800 rounded-full bg-rose-100 px-3 py-1">ABSENT</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        ) : null}
+      </section>
+
+      {loading && (
+        <div className="mt-4 text-sm text-slate-600">Loading…</div>
+      )}
+    </div>
+  )
+}
+
 export function StudentsPage() {
   const { token } = useAuth()
 
